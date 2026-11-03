@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Spend Story | Every expense tells a story</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+<div class="app-layout">
+
+    <aside class="sidebar">
+        <a href="/" class="brand">
+            <span class="brand-icon">✳</span>
+            <span>Spend <em>Story</em>
+                <small>Every expense tells a story.</small>
+            </span>
+        </a>
+
+        <nav class="navigation">
+            <a class="nav-link active" href="/">⌂ <span>Dashboard</span></a>
+            <a class="nav-link" href="#transactions">⇄ <span>Transactions</span></a>
+            <a class="nav-link" href="#analytics">▥ <span>Analytics</span></a>
+            <a class="nav-link" href="#goals">◎ <span>Budget Goals</span></a>
+            <a class="nav-link" href="#planner">▦ <span>Planner</span></a>
+        </nav>
+
+        <div class="sidebar-quote">
+            <span>✦</span>
+            <p>Small steps today, big dreams tomorrow.</p>
+        </div>
+
+        <div class="sidebar-bottom">
+            <span class="online-dot"></span> Your journey starts here
+        </div>
+    </aside>
+
+    <main class="main-content">
+
+        <header class="topbar">
+            <div class="search-box">
+                <span>⌕</span>
+                <input type="search" id="expense-search"
+                       placeholder="Search your spending story..."
+                       aria-label="Search transactions">
+            </div>
+            <div class="profile">
+                <span class="avatar">S</span>
+                <span>Hello, there!</span>
+            </div>
+        </header>
+
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                <div class="flash-container">
+                    {% for category, message in messages %}
+                        <div class="flash {{ category }}">{{ message }}</div>
+                    {% endfor %}
+                </div>
+            {% endif %}
+        {% endwith %}
+
+        <section class="hero">
+            <div class="hero-content">
+                <p class="eyebrow">WELCOME TO SPEND STORY</p>
+                <h1>Every expense<br>tells a <em>story.</em></h1>
+                <p class="hero-description">
+                    Track your spending, understand your habits,
+                    and build the life you want.
+                </p>
+                <a href="#transactions" class="hero-link">
+                    Explore your story <span>→</span>
+                </a>
+            </div>
+            <div class="hero-decoration" aria-hidden="true">
+                <span class="sun"></span>
+                <span class="hill hill-back"></span>
+                <span class="hill hill-front"></span>
+                <span class="path"></span>
+                <span class="hero-leaf leaf-one">❧</span>
+                <span class="hero-leaf leaf-two">❧</span>
+            </div>
+        </section>
+
+        <!-- Summary cards -->
+        <section class="summary-grid">
+            <article class="summary-card mint">
+                <div class="card-heading">
+                    <span>Total Expenses</span><span class="card-icon">₹</span>
+                </div>
+                <h2>₹{{ "%.2f"|format(total_expenses) }}</h2>
+                <p>All-time spending</p>
+            </article>
+
+            <article class="summary-card blue">
+                <div class="card-heading">
+                    <span>This Month</span><span class="card-icon">▦</span>
+                </div>
+                <h2>₹{{ "%.2f"|format(monthly_expenses) }}</h2>
+                <p>{{ current_month_label }}</p>
+            </article>
+
+            <article class="summary-card peach">
+                <div class="card-heading">
+                    <span>Transactions</span><span class="card-icon">⇄</span>
+                </div>
+                <h2>{{ transaction_count }}</h2>
+                <p>Total records</p>
+            </article>
+
+            <article class="summary-card pink">
+                <div class="card-heading">
+                    <span>Daily Average</span><span class="card-icon">◷</span>
+                </div>
+                <h2>₹{{ "%.2f"|format(daily_average) }}</h2>
+                <p>Per day this month</p>
+            </article>
+        </section>
+
+        <!-- Analytics -->
+        <section class="analytics-grid" id="analytics">
+
+            <article class="panel">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Spending by Category</h3>
+                        <p>Where does your money go?</p>
+                    </div>
+                    <span class="panel-badge">OVERVIEW</span>
+                </div>
+
+                <div class="category-content">
+                    {% if category_data %}
+                        {% set ns = namespace(total=0, gradient=[]) %}
+                        {% for item in category_data %}
+                            {% set start = ns.total %}
+                            {% set ns.total = ns.total + item.percentage %}
+                            {% set ns.gradient = ns.gradient + [
+                                item.color ~ ' ' ~ start ~ '% ' ~ ns.total ~ '%'
+                            ] %}
+                        {% endfor %}
+
+                        <div class="donut"
+                             style="background: conic-gradient({{ ns.gradient|join(', ') }});">
+                            <div class="donut-center">
+                                <span>Total spent</span>
+                                <strong>₹{{ "%.0f"|format(total_expenses) }}</strong>
+                            </div>
+                        </div>
+
+                        <div class="legend">
+                            {% for item in category_data %}
+                                <div class="legend-row">
+                                    <i class="dot" style="background:{{ item.color }}"></i>
+                                    <span>{{ item.name }}</span>
+                                    <b>{{ "%.1f"|format(item.percentage) }}%</b>
+                                </div>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="empty-small">
+                            <span>◌</span>
+                            <p>Your category chart will appear after you add expenses.</p>
+                        </div>
+                    {% endif %}
+                </div>
+            </article>
+
+            <article class="panel">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Monthly Spending Trend</h3>
+                        <p>Your spending throughout the year</p>
+                    </div>
+                    <span class="panel-badge">{{ current_year }}</span>
+                </div>
+
+                {% set chart_max = [monthly_values|max, 1]|max %}
+                <div class="chart-placeholder">
+                    <div class="chart-grid">
+                        <span>₹{{ "%.0f"|format(chart_max) }}</span>
+                        <span>₹{{ "%.0f"|format(chart_max * 0.75) }}</span>
+                        <span>₹{{ "%.0f"|format(chart_max * 0.50) }}</span>
+                        <span>₹{{ "%.0f"|format(chart_max * 0.25) }}</span>
+                        <span>₹0</span>
+                    </div>
+
+                    <div class="chart-area">
+                        <div class="monthly-bars">
+                            {% for value in monthly_values %}
+                                <div class="bar-column">
+                                    <div class="bar"
+                                         style="height:{{ (value / chart_max * 100)|round(1) }}%;"
+                                         title="{{ monthly_labels[loop.index0] }}: ₹{{ '%.2f'|format(value) }}">
+                                    </div>
+                                </div>
+                            {% endfor %}
+                        </div>
+                        <div class="chart-months">
+                            {% for month in monthly_labels %}
+                                <span>{{ month }}</span>
+                            {% endfor %}
+                        </div>
+                    </div>
+                </div>
+                <p class="chart-note">Each bar represents your recorded spending for that month.</p>
+            </article>
+        </section>
+
+        <!-- Transactions and insights -->
+        <section class="bottom-grid">
+            <article class="panel transactions-panel" id="transactions">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Recent Transactions</h3>
+                        <p>Your recorded expenses.</p>
+                    </div>
+                    <span class="panel-badge">{{ transaction_count }} RECORDS</span>
+                </div>
+
+                {% if expenses %}
+                    <div class="filter-row">
+                        <select id="category-filter">
+                            <option value="">All categories</option>
+                            {% for category in filter_categories %}
+                                <option value="{{ category|lower }}">{{ category }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <select id="month-filter">
+                            <option value="">All months</option>
+                            {% for month_key, month_label in available_months %}
+                                <option value="{{ month_key }}">{{ month_label }}</option>
+                            {% endfor %}
+                        </select>
+
+                        <select id="sort-filter">
+                            <option value="newest">Newest first</option>
+                            <option value="oldest">Oldest first</option>
+                            <option value="highest">Highest amount</option>
+                            <option value="lowest">Lowest amount</option>
+                        </select>
+                    </div>
+
+                    <div class="transaction-list" id="transaction-list">
+                        {% for expense in expenses %}
+                            <div class="transaction-item searchable-expense"
+                                 data-category="{{ expense[2]|lower }}"
+                                 data-date="{{ expense[3] }}"
+                                 data-amount="{{ expense[1] }}"
+                                 data-name="{{ expense[0]|lower }}">
+
+                                <div class="transaction-symbol">₹</div>
+
+                                <div class="transaction-details">
+                                    <strong>{{ expense[0] }}</strong>
+                                    <p>{{ expense[2] }} · {{ expense[3] }}</p>
+                                </div>
+
+                                <strong class="transaction-amount">
+                                    ₹{{ "%.2f"|format(expense[1]) }}
+                                </strong>
+
+                                <div class="expense-actions">
+                                    <button type="button" class="edit-btn"
+                                            data-id="{{ expense[4] }}"
+                                            data-name="{{ expense[0] }}"
+                                            data-amount="{{ expense[1] }}"
+                                            data-category="{{ expense[2] }}"
+                                            data-date="{{ expense[3] }}"
+                                            onclick="openEditForm(this)">
+                                        Edit
+                                    </button>
+
+                                    <form action="{{ url_for('delete_expense', expense_id=expense[4]) }}"
+                                          method="POST"
+                                          onsubmit="return confirm('Delete this expense?');">
+                                        <button type="submit" class="delete-btn">Delete</button>
+                                    </form>
+                                </div>
+                            </div>
+                        {% endfor %}
+                    </div>
+
+                    <p id="no-search-results" class="empty-small" hidden>
+                        No matching expenses found.
+                    </p>
+                    <button class="clear-filter" type="button" id="clear-filters">
+                        Clear filters
+                    </button>
+                {% else %}
+                    <div class="empty-state">
+                        <div class="empty-icon">▤</div>
+                        <h3>Your story starts here</h3>
+                        <p>Add your first expense and watch your financial story unfold.</p>
+                    </div>
+                {% endif %}
+
+                <a href="#expense-form" class="primary-button button-link">+ Add Expense</a>
+            </article>
+
+            <article class="panel insights-panel">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Quick Insights</h3>
+                        <p>Little steps toward better money habits.</p>
+                    </div>
+                    <span class="insight-star">✦</span>
+                </div>
+
+                <div class="insight-card">
+                    <div class="plant-icon">♧</div>
+                    <div>
+                        <h4>{{ insight_title }}</h4>
+                        <p>{{ insight_message }}</p>
+                    </div>
+                </div>
+
+                <div class="quick-actions">
+                    <a href="#expense-form"><span>▤</span><p>Track<br>expenses</p></a>
+                    <a href="#goals"><span>◎</span><p>Set<br>budgets</p></a>
+                    <a href="#planner"><span>▦</span><p>Plan<br>ahead</p></a>
+                </div>
+
+                <div class="inspiration">
+                    “Better choices today, a brighter tomorrow.”
+                </div>
+            </article>
+        </section>
+
+        <!-- Budget goals -->
+        <section class="panel feature-panel" id="goals">
+            <div class="panel-heading">
+                <div>
+                    <h3>Monthly Budget Goal</h3>
+                    <p>Give your money a direction for {{ current_month_label }}.</p>
+                </div>
+                <span class="panel-badge">YOUR GOAL</span>
+            </div>
+
+            <div class="budget-layout">
+                <div class="budget-info">
+                    <p class="muted-label">MONTHLY BUDGET</p>
+                    <h2>₹{{ "%.2f"|format(budget_amount) }}</h2>
+
+                    {% if budget_amount > 0 %}
+                        <div class="progress-track">
+                            <div class="progress-fill {% if budget_over > 0 %}over{% endif %}"
+                                 style="width:{{ budget_progress }}%;"></div>
+                        </div>
+                        <p class="budget-caption">
+                            ₹{{ "%.2f"|format(monthly_expenses) }} spent out of
+                            ₹{{ "%.2f"|format(budget_amount) }}
+                        </p>
+
+                        {% if budget_over > 0 %}
+                            <p class="warning-text">
+                                You are ₹{{ "%.2f"|format(budget_over) }} over your budget.
+                            </p>
+                        {% else %}
+                            <p class="success-text">
+                                ₹{{ "%.2f"|format(budget_remaining) }} remaining this month.
+                            </p>
+                        {% endif %}
+                    {% else %}
+                        <p class="budget-caption">Set a budget to start tracking your progress.</p>
+                    {% endif %}
+                </div>
+
+                <form class="feature-form" action="{{ url_for('save_budget') }}" method="POST">
+                    <label for="budget_amount">Set or update your monthly limit (₹)</label>
+                    <input id="budget_amount" type="number" name="budget_amount"
+                           min="0.01" step="0.01" placeholder="e.g. 15000" required>
+                    <button class="primary-button" type="submit">Save Budget →</button>
+                </form>
+            </div>
+        </section>
+
+        <!-- Planner -->
+        <section class="panel feature-panel" id="planner">
+            <div class="panel-heading">
+                <div>
+                    <h3>Expense Planner</h3>
+                    <p>Plan upcoming expenses before they happen.</p>
+                </div>
+                <span class="panel-badge">PLAN AHEAD</span>
+            </div>
+
+            <div class="planner-summary">
+                <div>
+                    <span>Upcoming planned expenses</span>
+                    <strong>₹{{ "%.2f"|format(planned_total) }}</strong>
+                </div>
+                <div>
+                    <span>Planned for this month</span>
+                    <strong>₹{{ "%.2f"|format(planned_month_total) }}</strong>
+                </div>
+                <div>
+                    <span>Projected monthly spending</span>
+                    <strong>₹{{ "%.2f"|format(projected_month_spending) }}</strong>
+                </div>
+            </div>
+
+            {% if budget_amount > 0 %}
+                {% if projected_over_budget > 0 %}
+                    <p class="warning-text">
+                        Your recorded and planned spending may exceed your budget by
+                        ₹{{ "%.2f"|format(projected_over_budget) }}.
+                    </p>
+                {% else %}
+                    <p class="success-text">
+                        Your planned spending is currently within your monthly budget.
+                    </p>
+                {% endif %}
+            {% else %}
+                <p class="budget-caption">
+                    Set a monthly budget above to compare your plans with your limit.
+                </p>
+            {% endif %}
+
+            <form class="planner-form" action="{{ url_for('add_plan') }}" method="POST">
+                <label>
+                    Expense name
+                    <input type="text" name="plan_name" placeholder="e.g. New shoes" required>
+                </label>
+
+                <label>
+                    Expected amount (₹)
+                    <input type="number" name="plan_amount" min="0.01"
+                           step="0.01" placeholder="e.g. 1200" required>
+                </label>
+
+                <label>
+                    Category
+                    <select name="plan_category" required>
+                        <option value="">Choose category</option>
+                        <option>Food</option>
+                        <option>Travel</option>
+                        <option>Education</option>
+                        <option>Bills</option>
+                        <option>Health</option>
+                        <option>Entertainment</option>
+                        <option>Shopping</option>
+                        <option>Other</option>
+                    </select>
+                </label>
+
+                <label>
+                    Planned date
+                    <input type="date" name="plan_date" min="{{ today }}" required>
+                </label>
+
+                <label class="notes-field">
+                    Notes (optional)
+                    <input type="text" name="plan_notes" placeholder="Any extra details">
+                </label>
+
+                <button class="primary-button" type="submit">Add to Planner →</button>
+            </form>
+
+            <div class="planned-list">
+                <h4>Your upcoming plans</h4>
+
+                {% if planned_expenses %}
+                    {% for plan in planned_expenses %}
+                        <div class="planned-item">
+                            <div class="planned-icon">✦</div>
+                            <div class="planned-details">
+                                <strong>{{ plan.name }}</strong>
+                                <p>{{ plan.category }} · {{ plan.planned_date }}</p>
+                                {% if plan.notes %}
+                                    <small>{{ plan.notes }}</small>
+                                {% endif %}
+                            </div>
+                            <strong class="planned-amount">
+                                ₹{{ "%.2f"|format(plan.amount) }}
+                            </strong>
+                            <form method="POST"
+                                  action="{{ url_for('delete_plan', plan_id=plan.id) }}"
+                                  onsubmit="return confirm('Remove this planned expense?');">
+                                <button class="delete-btn" type="submit">Remove</button>
+                            </form>
+                        </div>
+                    {% endfor %}
+                {% else %}
+                    <div class="empty-small">
+                        <p>No upcoming plans yet. Add one above to get started.</p>
+                    </div>
+                {% endif %}
+            </div>
+        </section>
+
+        <!-- Add expense -->
+        <section class="panel add-expense-panel" id="expense-form">
+            <div class="panel-heading">
+                <div>
+                    <h3>Start a New Story</h3>
+                    <p>Record an expense — every expense tells a story.</p>
+                </div>
+            </div>
+
+            <form class="expense-form" action="{{ url_for('add_expense') }}" method="POST">
+                <label>
+                    Expense name
+                    <input type="text" name="name" placeholder="e.g. Lunch" required>
+                </label>
+
+                <label>
+                    Amount (₹)
+                    <input type="number" name="amount" min="0.01"
+                           step="0.01" placeholder="e.g. 150" required>
+                </label>
+
+                <label>
+                    Category
+                    <select name="category" required>
+                        <option value="">Choose category</option>
+                        <option>Food</option>
+                        <option>Travel</option>
+                        <option>Education</option>
+                        <option>Bills</option>
+                        <option>Health</option>
+                        <option>Entertainment</option>
+                        <option>Shopping</option>
+                        <option>Other</option>
+                    </select>
+                </label>
+
+                <label>
+                    Date
+                    <input type="date" name="date" max="{{ today }}" value="{{ today }}" required>
+                </label>
+
+                <button class="primary-button" type="submit">Save Expense →</button>
+            </form>
+        </section>
+
+        <footer class="page-footer">
+            Made with <span>♥</span> for your financial freedom
+            <span class="footer-divider">|</span>
+            <strong>Spend Story</strong>
+        </footer>
+    </main>
+</div>
+
+<!-- Edit expense modal -->
+<div class="edit-modal" id="edit-modal" aria-hidden="true">
+    <div class="edit-box" role="dialog" aria-modal="true">
+        <div class="edit-modal-heading">
+            <div>
+                <h2>Edit Expense</h2>
+                <p>Update your spending story.</p>
+            </div>
+            <button type="button" class="modal-close"
+                    onclick="closeEditForm()" aria-label="Close">&times;</button>
+        </div>
+
+        <form id="edit-form" method="POST">
+            <label>
+                Expense name
+                <input type="text" name="name" id="edit-name" required>
+            </label>
+
+            <label>
+                Amount (₹)
+                <input type="number" name="amount" id="edit-amount"
+                       min="0.01" step="0.01" required>
+            </label>
+
+            <label>
+                Category
+                <select name="category" id="edit-category" required>
+                    <option>Food</option>
+                    <option>Travel</option>
+                    <option>Education</option>
+                    <option>Bills</option>
+                    <option>Health</option>
+                    <option>Entertainment</option>
+                    <option>Shopping</option>
+                    <option>Other</option>
+                </select>
+            </label>
+
+            <label>
+                Date
+                <input type="date" name="date" id="edit-date" required>
+            </label>
+
+            <div class="edit-modal-actions">
+                <button type="button" class="cancel-btn" onclick="closeEditForm()">Cancel</button>
+                <button type="submit" class="primary-button">Save Changes</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    const searchInput = document.getElementById("expense-search");
+    const categoryFilter = document.getElementById("category-filter");
+    const monthFilter = document.getElementById("month-filter");
+    const sortFilter = document.getElementById("sort-filter");
+    const transactionList = document.getElementById("transaction-list");
+    const noResults = document.getElementById("no-search-results");
+
+    function filterTransactions() {
+        if (!transactionList) return;
+
+        const query = searchInput.value.trim().toLowerCase();
+        const category = categoryFilter.value;
+        const month = monthFilter.value;
+        const rows = Array.from(
+            transactionList.querySelectorAll(".searchable-expense")
+        );
+
+        rows.forEach(row => {
+            const matchesSearch = row.textContent.toLowerCase().includes(query);
+            const matchesCategory = !category || row.dataset.category === category;
+            const matchesMonth = !month || row.dataset.date.startsWith(month);
+
+            row.hidden = !(matchesSearch && matchesCategory && matchesMonth);
+        });
+
+        const visibleRows = rows.filter(row => !row.hidden);
+        const sort = sortFilter.value;
+
+        visibleRows.sort((a, b) => {
+            if (sort === "newest") return b.dataset.date.localeCompare(a.dataset.date);
+            if (sort === "oldest") return a.dataset.date.localeCompare(b.dataset.date);
+            if (sort === "highest") return Number(b.dataset.amount) - Number(a.dataset.amount);
+            if (sort === "lowest") return Number(a.dataset.amount) - Number(b.dataset.amount);
+            return 0;
+        });
+
+        visibleRows.forEach(row => transactionList.appendChild(row));
+
+        if (noResults) {
+            noResults.hidden = visibleRows.length !== 0;
+        }
+    }
+
+    if (searchInput) searchInput.addEventListener("input", filterTransactions);
+    if (categoryFilter) categoryFilter.addEventListener("change", filterTransactions);
+    if (monthFilter) monthFilter.addEventListener("change", filterTransactions);
+    if (sortFilter) sortFilter.addEventListener("change", filterTransactions);
+
+    const clearButton = document.getElementById("clear-filters");
+    if (clearButton) {
+        clearButton.addEventListener("click", () => {
+            searchInput.value = "";
+            categoryFilter.value = "";
+            monthFilter.value = "";
+            sortFilter.value = "newest";
+            filterTransactions();
+        });
+    }
+
+    function openEditForm(button) {
+        document.getElementById("edit-form").action = "/edit/" + button.dataset.id;
+        document.getElementById("edit-name").value = button.dataset.name;
+        document.getElementById("edit-amount").value = button.dataset.amount;
+        document.getElementById("edit-category").value = button.dataset.category;
+        document.getElementById("edit-date").value = button.dataset.date;
+
+        const modal = document.getElementById("edit-modal");
+        modal.style.display = "flex";
+        modal.setAttribute("aria-hidden", "false");
+        document.getElementById("edit-name").focus();
+    }
+
+    function closeEditForm() {
+        const modal = document.getElementById("edit-modal");
+        modal.style.display = "none";
+        modal.setAttribute("aria-hidden", "true");
+    }
+
+    document.getElementById("edit-modal").addEventListener("click", event => {
+        if (event.target.id === "edit-modal") closeEditForm();
+    });
+
+    document.addEventListener("keydown", event => {
+        if (event.key === "Escape") closeEditForm();
+    });
+</script>
+</body>
+</html>
