@@ -1,7 +1,9 @@
 from flask import (
     Flask, render_template, request,
     redirect, url_for, flash
+
 )
+from flask import send_from_directory
 from db import (
     add_expense_to_db,
     get_all_expenses,
@@ -104,6 +106,13 @@ def validate_plan_form():
 
     return (name, amount, category, planned_date, notes), None
 
+@app.route("/service-worker.js")
+def service_worker():
+    return send_from_directory(
+        "static",
+        "service-worker.js",
+        mimetype="application/javascript"
+    )
 
 @app.route("/")
 def home():
