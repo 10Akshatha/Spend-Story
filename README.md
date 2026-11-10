@@ -94,9 +94,9 @@ python app.py
 
 To build a practical expense management application while learning backend development, database integration, authentication, and multi-user data management.
 
-## 👩‍💻 Developer
+## 👩‍🎓 About Me
 
-**Akshatha DS**
+I'm Akshatha DS, a Computer Science Engineering graduate specializing in Data Science, passionate about learning technology and building practical applications.
 
 GitHub: https://github.com/10Akshatha
 
